@@ -1,14 +1,12 @@
 module Destroid.Main where
 
-import Time exposing (..)
-import Signal exposing (..)
+import Time             exposing (fps)
+import Signal           exposing (map2, foldp)
 
-import Destroid.Utils exposing (..)
-import Destroid.Model exposing (..)
-import Destroid.World exposing (..)
-import Destroid.Debug exposing (..)
-import Destroid.Views exposing (..)
-import Destroid.Control exposing (..)
+import Destroid.Model   exposing (Model, istate)
+import Destroid.World   exposing (World, world)
+import Destroid.Views   exposing (view)
+import Destroid.Control exposing (updater)
 
 
 deltas : Signal Float

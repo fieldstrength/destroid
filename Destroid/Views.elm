@@ -10,6 +10,7 @@ import Text exposing (fromString)
 import Destroid.Utils exposing (..)
 import Destroid.Model exposing (..)
 import Destroid.World exposing (World)
+import Destroid.Params exposing (..)
 import Destroid.Debug exposing (debug_info)
 
 
@@ -26,7 +27,7 @@ view w m = case m.mode of
   Playing      -> gameView w m
   Title        -> titleView w m
   Transition t -> transitionView w t m
-  Dead         -> deadView w m
+  Dead t       -> deadView w m
 
 
 ---------------------------------------
@@ -67,6 +68,7 @@ gameView wld m = let (w,h)   = m.size
   [filled gameBG <| rect (toF cw) (toF ch)] --background
      ++ bullets m
      ++ ships m
+     ++ List.concat (asteroids m <$> m.ast)
      ++ lifeBar wld m
      ++ (if m.debug then [debug_info m.dt 
                             |> color orange 
@@ -94,7 +96,7 @@ duplicate : Model -> Form -> List Form
 duplicate m f = flip move f <$> copies m.size
 
 
-position : Phys -> Form -> Form
+position : Phys a -> Form -> Form
 position ph = move (ph.x, ph.y) >> rotate ph.r
 
 
@@ -160,7 +162,7 @@ ships m = duplicate m (ship m)
 
 ---- bullets ----
 
-bullet : V2 -> Phys -> Form
+bullet : V2 -> Phys a -> Form
 bullet (w,h) ph = let s = h /1000
                       n = 16 in
   polygon [(-s,0),(-s,n*s),(s,n*s),(s,0)] 
@@ -182,6 +184,20 @@ lifeBar wld m = let life  = m.life * 1.4
   move (-0.5*w + 90,0.5*h - 24) <$> [filled lifebarcolor (rect life 8) |> move ((life-140)*0.5,0),
                                      outlined (solid white) (rect 140 8)]
 
+---- asteroids ----
+
+asteroid : Model -> Asteroid -> Form
+asteroid m a = let (w,h) = m.size
+                   scale = (case a.sz of
+                                 Big    -> h / astScaleBig
+                                 Medium -> h / astScaleMedium
+                                 Small  -> h / astScaleSmall)
+               in
+  circle scale |> filled white |> position a
+
+asteroids : Model -> Asteroid -> List Form
+asteroids m a = duplicate m (asteroid m a)
+
 ---------------------------------------
 --          Transition view
 ---------------------------------------
@@ -189,7 +205,7 @@ lifeBar wld m = let life  = m.life * 1.4
 transitionView : World -> Float -> Model -> Element
 transitionView wld t0 m =
   let (w,h) = (wld.w, wld.h) 
-      alph  = Debug.watch "intro animation alpha" <| (m.time - t0) / 120
+      alph  = Debug.watch "Intro animation alpha" <| (m.time - t0) / 120
   in  collage w h <|
         [rect (toF w) (toF h) |> filled titleBG,
          rect (toF w) (toF h) |> filled gameBG |> alpha alph,
@@ -201,4 +217,4 @@ transitionView wld t0 m =
 ---------------------------------------
 
 deadView : World -> Model -> Element
-deadView w m = leftAligned (fromString "FILL IN")
+deadView w m = leftAligned (fromString "YOU'RE DEAD")
