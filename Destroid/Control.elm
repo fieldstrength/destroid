@@ -10,15 +10,14 @@ import Destroid.Params exposing (..)
 
 updater : (Float, World) -> Model -> Model
 updater w m = m |> timeStep w |> watcher |> case m.mode of
-  Playing      -> gameUpdate w
+  Playing      -> gameUpdate  w
   Title        -> titleUpdate w
   Transition t -> transitionUpdate w (t + 120)
   Dead t       -> deadUpdate w (t + 180)
 
 
 watcher : Model -> Model
-watcher m = {m | size <- Debug.watch "Size" m.size,
-                 time <- Debug.watch "Time [sec/50]" m.time,
+watcher m = {m | time <- Debug.watch "Time [sec/50]" m.time,
                  me   <- Debug.watch "Flight data" m.me,
                  ast  <- Debug.watch "Asteroids" m.ast}
 
@@ -43,9 +42,9 @@ setSize wld m =
   let (sw,sh) = (toF wld.w, toF wld.h)
       w'      = sh * aspect  -- from window height, compute width corresponding to aspect ratio
   in  case (compare w' sw) of   
-           LT -> {m | size <- (w' * 0.8, sh * 0.8) } -- if computed width < window width, use it
-           EQ -> {m | size <- (w' * 0.8, sh * 0.8) }
-           GT -> {m | size <- (sw * 0.8, sw * 0.8 / aspect) }
+           LT -> {m | screenScale <- stageScale * w' / spaceW } -- if computed width < window width, use it
+           EQ -> {m | screenScale <- stageScale * w' / spaceW }
+           GT -> {m | screenScale <- stageScale * sh / spaceH }
            -- otherwise (GT) compute height based on width & aspect ratio
 
 
@@ -97,11 +96,15 @@ gun' : (Float, World) -> Model -> Model
 gun' (dt, wld) m = if wld.c.shoot then {m | buls <- m.buls ++ [shootFrom m.me]} else m
 
 
+b_i = 5
+
 -- impart momentum to bullets
 shootFrom : Phys a -> Phys a
 shootFrom ph = {ph | vx <- ph.vx - bulV*(sin ph.r),
                      vy <- ph.vy + bulV*(cos ph.r),
-                     vr <- 0}
+                     vr <- 0,
+                     x  <- ph.x - b_i * (sin ph.r),
+                     y  <- ph.y + b_i * (cos ph.r)}
 
 -- move according to momentum
 evolveAll : (Float, World) -> Model -> Model
@@ -119,31 +122,31 @@ evolve (dt, wld) ph = {ph | x <- ph.x + ph.vx * dt * scaleV,
 
 reflectX : V2 -> Phys a -> Phys a
 reflectX (w,h) b = 
-  if | b.x < -w -> {b | x <- b.x + w}
-     | b.x >  w -> {b | x <- b.x - w}
+  if | b.x < -0.5*w -> {b | x <- b.x + w}
+     | b.x >  0.5*w -> {b | x <- b.x - w}
      | otherwise    -> b
 
 
 reflectY : V2 -> Phys a -> Phys a
 reflectY (w,h) b = 
-  if | b.y < -h  -> {b | y <- b.y + h}
-     | b.y >  h  -> {b | y <- b.y - h}
+  if | b.y < -0.5*h  -> {b | y <- b.y + h}
+     | b.y >  0.5*h  -> {b | y <- b.y - h}
      | otherwise -> b
 
 reflect : Model -> Model
 reflect m = let reflect' (w,h) = reflectX (w,h) >> reflectY (w,h) in
-  {m | me   <- reflect' m.size m.me,
-       buls <- reflect' m.size <$> m.buls,
-       ast  <- reflect' m.size <$> m.ast}
+  {m | me   <- reflect' spaceSize m.me,
+       buls <- reflect' spaceSize <$> m.buls,
+       ast  <- reflect' spaceSize <$> m.ast}
 
 
 ---- collision detection ----
 
-distance : Phys a -> Phys a -> Float
+distance : Phys a -> Phys b -> Float
 distance g h = let dx = g.x - h.x
                    dy = g.y - h.y in sqrt <| dx*dx + dy*dy
 
-checkDistance : Float -> Phys a -> Phys a -> Bool
+checkDistance : Float -> Phys a -> Phys b -> Bool
 checkDistance delta g h = if | abs (g.x - h.x) > delta -> False
                              | otherwise -> distance g h < delta
 
@@ -153,7 +156,7 @@ filterN f = List.filter (f >> not)
 -- shooting yourself
 applyCollisions : Model -> Model
 applyCollisions m = 
-  let bullets = filterN (checkDistance 3.0 m.me) m.buls
+  let bullets = filterN (checkDistance shipHitR m.me) m.buls
       db      = List.length m.buls - (List.length bullets)
   in {m | buls <- bullets,
           life <- m.life - 10 * toF db}
@@ -161,11 +164,11 @@ applyCollisions m =
 
 ---- asteroids ----
 
-astScale : ASize -> Float
-astScale a = case a of
-  Big    -> astScaleBig
-  Medium -> astScaleMedium
-  Small  -> astScaleSmall
+astSize : ASize -> Float
+astSize a = case a of
+  Big    -> astSizeBig
+  Medium -> astSizeMedium
+  Small  -> astSizeSmall
 
 breakUp' : Asteroid -> List Asteroid
 breakUp' ph = [{ph | vy <- ph.vy + astV},
@@ -181,20 +184,8 @@ breakUp a = case a.sz of
   Small  -> []
 
 
----------- XXX Should not have to rewrite these functions
-
-distance' : Asteroid -> Phys {} -> Float
-distance' g h = let dx = g.x - h.x
-                    dy = g.y - h.y in sqrt <| dx*dx + dy*dy
-
-checkDistance' : Float -> Asteroid -> Phys {} -> Bool
-checkDistance' delta g h = if | abs (g.x - h.x) > delta -> False
-                              | otherwise -> distance' g h < delta
-----------
-
 checkAst : Float -> Asteroid -> List (Phys {}) -> List (Phys {})
-checkAst f a bs = let r = f / (astScale a.sz)
-                  in  filterN (checkDistance' r a) bs
+checkAst f a bs = filterN (checkDistance (astSize a.sz) a) bs
 
 checkAst_Bullet : Float -> (List Asteroid, List (Phys {})) -> (List Asteroid, List (Phys {}))
 checkAst_Bullet f (alist, blist) = case (alist,blist) of
@@ -207,7 +198,7 @@ checkAst_Bullet f (alist, blist) = case (alist,blist) of
                          False -> breakUp a ++^ checkAst_Bullet f (la,lb')
 
 applyImpacts : Model -> Model
-applyImpacts m = let (w,h) = m.size
+applyImpacts m = let (w,h)   = stage m
                      (la,lb) = checkAst_Bullet h (m.ast,m.buls)
                  in  {m | ast  <- la,
                           buls <- lb}

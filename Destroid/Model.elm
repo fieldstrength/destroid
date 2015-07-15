@@ -2,6 +2,9 @@ module Destroid.Model where
 
 import Debug exposing (watch)
 
+import Destroid.Params exposing (spaceSize, stageScale)
+import Destroid.Utils  exposing (v2scale)
+
 type Mode = Title
           | Transition Float
           | Playing
@@ -24,7 +27,7 @@ type alias Asteroid = Phys {sz : ASize}
 
 -- master game data record
 type alias Model = { mode   : Mode,           -- game mode
-                     size   : (Float, Float), -- size of the compact space.
+                     screenScale : Float,     -- multiplication factor for display
                      time   : Float,          -- total time
                      dt     : Float,          -- timestep
                      
@@ -34,14 +37,19 @@ type alias Model = { mode   : Mode,           -- game mode
                      
                      f      : Bool,           -- firing
                      trigg  : Bool,           -- gun ready
-                     life   : Float,          -- life (out of 100)
+                     life   : Float}          -- life (out of 100)
 
-                     debug  : Bool}           -- debug mode
+
+screenCoords : Model -> (Float,Float) -> (Float,Float)
+screenCoords m = v2scale m.screenScale
+
+stage : Model -> (Float,Float)
+stage m = screenCoords m spaceSize
 
 -- initial state
 istate : Model
 istate = { mode   = Title,
-           size   = (900,600),
+           screenScale = 9,
            time   = 0,
            dt     = 0,
 
@@ -51,9 +59,7 @@ istate = { mode   = Title,
 
            f      = False,
            trigg  = False,
-           life   = 100,
-
-           debug  = False}
+           life   = 100}
 
 x0 = { x  = 0,
        y  = 0,
@@ -63,6 +69,6 @@ x0 = { x  = 0,
        vr = 0 }
 
 x1 = {x0 | vx <-  20,
-           y  <-  80}
+           y  <-  50}
 
 a0 = {x1 | sz = Big}
