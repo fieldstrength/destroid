@@ -10,11 +10,11 @@ spaceW    = 200 * aspect     -- space width (game units)
 spaceH    = 200              -- space height
 spaceSize = (spaceW, spaceH) -- space size
 
-debug = True
+debug = False
 
 ---- Flight parameters ----
 
-scaleR = 0.006  -- rotation response scale
+scaleR = 0.005  -- rotation response scale
 scaleV = 0.025  -- acceleration response scale
 bulV   = 80     -- bullet velocity
 astV   = 20     -- asteroid debris velocity
@@ -26,6 +26,6 @@ astSizeSmall  = spaceH / 65
 ---- Visual form parameters ----
 
 shipSize   = spaceH / 50
-shipHitR   = 3.0  -- shit hit radius
+shipHitR   = 3.0  -- ship hit radius
 
 bulletSize = spaceH / 350

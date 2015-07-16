@@ -57,34 +57,45 @@ hyper x = sqrt(1 + x*x)
 
 sq x = x*x
 
+
 ---------------------------------------
 --            Game view
 ---------------------------------------
 
 gameView : World -> Model -> Element
-gameView wld m = let (cw,ch) = (wld.w, wld.h)
-                 in  collage cw ch <|
-  [filled gameBG <| rect (toF cw) (toF ch)] --background
-     ++ bullets m
-     ++ ships m
-     ++ List.concat (asteroids m <$> m.ast)
-     ++ lifeBar wld m
-     ++ (if debug then [debug_info m.dt
-                          |> color orange
-                          |> width 300
-                          |> toForm
-                          |> move (160 - 0.5 * toF cw,30 - 0.5 * toF ch)]
-                  else [])
+gameView wld m =
+  let (cw,ch) = (wld.w, wld.h)
+  in  collage cw ch <|
+           (filled gameBG <| rect (toF cw) (toF ch)) --background
+        :: renderGroups m
+        ++ lifeBar wld m
+        ++ (if debug then [debug_info m.dt
+                             |> color orange
+                             |> width 300
+                             |> toForm
+                             |> move (160 - 0.5 * toF cw,30 - 0.5 * toF ch)]
+                     else [])
 
 
-screenCoords : Model -> (Float,Float) -> (Float,Float)
-screenCoords m = v2scale m.screenScale
+renderGroups : Model -> List Form
+renderGroups m = render m (renderers m)
 
-stage : Model -> (Float,Float)
-stage m = screenCoords m spaceSize
+renderers : Model -> List (Model -> Form)
+renderers m = ship
+           :: (bullet   <$> m.buls)
+           ++ (asteroid <$> m.ast)
+
+render : Model -> List (Model -> Form) -> List Form
+render m l = case l of
+  []        -> []
+  (f :: fs) -> duplicate m (f m) ++ render m fs
+
+
+duplicate : Model -> Form -> List Form
+duplicate m f = flip move f <$> copies (stage m)
 
 copies : V2 -> List V2
-copies (x,y) = 
+copies (x,y) =
   [
     (-x, -y),
     (-x, 0),
@@ -97,9 +108,6 @@ copies (x,y) =
     (x, y)
   ]
 
-duplicate : Model -> Form -> List Form
-duplicate m f = flip move f <$> copies (stage m)
-
 
 position : Model -> Phys a -> Form -> Form
 position m ph = move (screenCoords m (ph.x,ph.y)) >> rotate ph.r
@@ -107,13 +115,26 @@ position m ph = move (screenCoords m (ph.x,ph.y)) >> rotate ph.r
 
 ---- the ship ----
 
-shipdesign = [(0.00,4.40),   -- 990, 660
+ship : Model -> Form
+ship m =
+   [booster         |> List.map (v2scale shipSize) |> polygon |> filled boostercolor,
+    booster |> refl |> List.map (v2scale shipSize) |> polygon |> filled boostercolor,
+    shipdesign      |> List.map (v2scale shipSize) |> polygon |> filled shipcolor]
+      |> appendIf (m.f) [flame |> refl |> List.map (v2scale shipSize) |> polygon |> grad shipSize,
+                         flame |>         List.map (v2scale shipSize) |> polygon |> grad shipSize]
+      |> group
+      |> position m m.me
+
+
+refl = List.map (\(x,y) -> (-x,y))
+
+shipdesign = [(0.00,4.40),
               (0.26,3.84),
               (0.82,0.8),
               (2.48,-0.3),
-              (2.48,-1.2),  -- 1234, 1218
+              (2.48,-1.2),
               (0.86,-1.0),
-              (0.00,-1.9),  -- 990, 1280
+              (0.00,-1.9),
               (-0.86,-1.0),
               (-2.48,-1.2),
               (-2.48,-0.3),
@@ -139,41 +160,31 @@ flame = [(1.30,-1.3),
          (0.70,-1.8),
          (0.80,-1.3)]
 
-
-ship : Model -> Form
-ship m =
-   [booster         |> List.map (v2scale shipSize) |> polygon |> filled boostercolor,
-    booster |> refl |> List.map (v2scale shipSize) |> polygon |> filled boostercolor,
-    shipdesign      |> List.map (v2scale shipSize) |> polygon |> filled shipcolor]
-      |> appendIf (m.f) [flame |> refl |> List.map (v2scale shipSize) |> polygon |> grad shipSize,
-                         flame |>         List.map (v2scale shipSize) |> polygon |> grad shipSize]
-      |> group
-      |> position m m.me
-
-refl = List.map (\(x,y) -> (-x,y))
-
 grad s = gradient <| 
   linear (0,-s) (0,-3*s) [(0,  white),
                           (0.4,rgba 118 169 245 0.9),
-                          (1,  rgba 115 75 141 0.5)]
-
-
-ships : Model -> List Form
-ships m = duplicate m (ship m)
+                          (1,  rgba 115 75  141 0.5)]
 
 
 ---- bullets ----
 
-bullet : Model -> V2 -> Phys a -> Form
-bullet m (w,h) ph = let s = bulletSize
-                        n = 16 in
+bullet : Phys a -> Model -> Form
+bullet ph m = let s = bulletSize
+                  n = 16 in
   polygon [(-s,0),(-s,n*s),(s,n*s),(s,0)] 
     |> filled bulletcolor
     |> position m ph
 
 
-bullets : Model -> List Form
-bullets m = duplicate m <$> bullet m (stage m) <$> m.buls |> List.concat
+---- asteroids ----
+
+asteroid : Asteroid -> Model -> Form
+asteroid a m = let size = (case a.sz of
+                                Big    -> astSizeBig
+                                Medium -> astSizeMedium
+                                Small  -> astSizeSmall)
+               in
+  circle size |> filled white |> position m a
 
 
 ---- game data displays ----
@@ -185,19 +196,6 @@ lifeBar wld m = let life  = m.life * 1.4
                 in
   move (-0.5*w + 90,0.5*h - 24) <$> [filled lifebarcolor (rect life 8) |> move ((life-140)*0.5,0),
                                      outlined (solid white) (rect 140 8)]
-
----- asteroids ----
-
-asteroid : Model -> Asteroid -> Form
-asteroid m a = let size = (case a.sz of
-                                Big    -> astSizeBig
-                                Medium -> astSizeMedium
-                                Small  -> astSizeSmall)
-               in
-  circle size |> filled white |> position m a
-
-asteroids : Model -> Asteroid -> List Form
-asteroids m a = duplicate m (asteroid m a)
 
 ---------------------------------------
 --          Transition view
