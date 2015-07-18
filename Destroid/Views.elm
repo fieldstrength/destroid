@@ -11,22 +11,15 @@ import Destroid.Utils exposing (..)
 import Destroid.Model exposing (..)
 import Destroid.World exposing (World)
 import Destroid.Params exposing (..)
-import Destroid.Debug exposing (debug_info)
-
-
-gameBG       = rgb  31  42  62
-titleBG      = rgb  45  61  91
-shipcolor    = rgb  225 250 213
-boostercolor = rgb  169 172 146
-bulletcolor  = rgb  247 104 147
-lifebarcolor = rgba 214 102 220 0.7
+import Destroid.Debug exposing (debug_panel)
 
 
 view : World -> Model -> Element
 view w m = case m.mode of
-  Playing      -> gameView w m
   Title        -> titleView w m
   Transition t -> transitionView w t m
+  LevelIntro t -> levelIntroView w t m
+  Playing t    -> gameView w m
   Dead t       -> deadView w m
 
 
@@ -59,6 +52,69 @@ sq x = x*x
 
 
 ---------------------------------------
+--          Transition view
+---------------------------------------
+
+transitionView : World -> Float -> Model -> Element
+transitionView wld t0 m =
+  let (w,h) = (wld.w, wld.h)
+      alph  = Debug.watch "Intro animation alpha" <| (m.time - t0) / 120
+  in  collage w h <|
+        [rect (toF w) (toF h) |> filled titleBG,
+         rect (toF w) (toF h) |> filled gameBG |> alpha alph,
+         shipIntroAnim (alph*4) m]
+
+
+---------------------------------------
+--            Level Intro view
+---------------------------------------
+
+levelIntroView : World -> Float -> Model -> Element
+levelIntroView wld t m =
+  let alph    = fadeInOut t (t+t_fade) (m.lvl.tf-t_fade) m.lvl.tf m.time
+      (cw,ch) = (wld.w, wld.h)
+  in  collage cw ch <|
+           (filled gameBG <| rect (toF cw) (toF ch)) --background
+        :: introRenderGroups alph m
+        ++ lifeBar wld m
+        ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
+
+
+fade : Float -> Float -> Float -> Float
+fade ti tf t = (t - ti) / (tf - ti)
+
+fadeInOut : Float -> Float -> Float -> Float -> Float -> Float
+fadeInOut t1 t2 t3 t4 t =
+  if | t1 < t && t <= t2 -> fade t1 t2 t
+     | t2 < t && t <= t3 -> 1
+     | t3 < t && t <= t4 -> fade t4 t3 t
+     | otherwise         -> 0
+
+
+introRenderers : Float -> Model -> List (Model -> Form)
+introRenderers f m = wormhole f
+                  :: renderers m
+                  ++ [wormhole (f * 0.4)]
+
+introRenderGroups : Float -> Model -> List Form
+introRenderGroups f m = render m (introRenderers f m)
+
+
+---- wormhole ----
+
+wormhole : Float -> Model -> Form
+wormhole f m = whform m |> alpha f
+
+whform : Model -> Form
+whform m = gradient (whgrad 100) (circle <| 200) |> position m m.lvl.xi
+
+whgrad : Float -> Gradient
+whgrad n = radial (0,0) (0.2*n) (0,0) n
+    [ (0, rgb  0 0 0),
+      (1, rgba 0 0 0 0) ]
+
+
+---------------------------------------
 --            Game view
 ---------------------------------------
 
@@ -69,12 +125,7 @@ gameView wld m =
            (filled gameBG <| rect (toF cw) (toF ch)) --background
         :: renderGroups m
         ++ lifeBar wld m
-        ++ (if debug then [debug_info m.dt
-                             |> color orange
-                             |> width 300
-                             |> toForm
-                             |> move (160 - 0.5 * toF cw,30 - 0.5 * toF ch)]
-                     else [])
+        ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
 
 
 renderGroups : Model -> List Form
@@ -117,13 +168,15 @@ position m ph = move (screenCoords m (ph.x,ph.y)) >> rotate ph.r
 
 ship : Model -> Form
 ship m =
-   [booster         |> List.map (v2scale shipSize) |> polygon |> filled boostercolor,
-    booster |> refl |> List.map (v2scale shipSize) |> polygon |> filled boostercolor,
-    shipdesign      |> List.map (v2scale shipSize) |> polygon |> filled shipcolor]
-      |> appendIf (m.f) [flame |> refl |> List.map (v2scale shipSize) |> polygon |> grad shipSize,
-                         flame |>         List.map (v2scale shipSize) |> polygon |> grad shipSize]
-      |> group
-      |> position m m.me
+  let sh =
+    [booster         |> List.map (v2scale shipSize) |> polygon |> filled boostercolor,
+     booster |> refl |> List.map (v2scale shipSize) |> polygon |> filled boostercolor,
+     shipdesign      |> List.map (v2scale shipSize) |> polygon |> filled shipcolor]
+       |> appendIf (m.f) [flame |> refl |> List.map (v2scale shipSize) |> polygon |> boostgrad shipSize,
+                          flame |>         List.map (v2scale shipSize) |> polygon |> boostgrad shipSize]
+       |> group
+       |> position m m.me
+  in if isNothing m.blink then sh else sh |> alpha 0.4
 
 
 refl = List.map (\(x,y) -> (-x,y))
@@ -160,7 +213,7 @@ flame = [(1.30,-1.3),
          (0.70,-1.8),
          (0.80,-1.3)]
 
-grad s = gradient <| 
+boostgrad s = gradient <|
   linear (0,-s) (0,-3*s) [(0,  white),
                           (0.4,rgba 118 169 245 0.9),
                           (1,  rgba 115 75  141 0.5)]
@@ -184,7 +237,7 @@ asteroid a m = let size = (case a.sz of
                                 Medium -> astSizeMedium
                                 Small  -> astSizeSmall)
                in
-  circle size |> filled white |> position m a
+  circle size |> outlined (solid white) |> position m a
 
 
 ---- game data displays ----
@@ -196,19 +249,6 @@ lifeBar wld m = let life  = m.life * 1.4
                 in
   move (-0.5*w + 90,0.5*h - 24) <$> [filled lifebarcolor (rect life 8) |> move ((life-140)*0.5,0),
                                      outlined (solid white) (rect 140 8)]
-
----------------------------------------
---          Transition view
----------------------------------------
-
-transitionView : World -> Float -> Model -> Element
-transitionView wld t0 m =
-  let (w,h) = (wld.w, wld.h) 
-      alph  = Debug.watch "Intro animation alpha" <| (m.time - t0) / 120
-  in  collage w h <|
-        [rect (toF w) (toF h) |> filled titleBG,
-         rect (toF w) (toF h) |> filled gameBG |> alpha alph,
-         shipIntroAnim (alph*4) m]
 
 
 ---------------------------------------

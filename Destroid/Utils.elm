@@ -26,3 +26,11 @@ infixr 6 ++^
 (::^) a1 (la,lb) = (a1 :: la, lb)
 
 infixr 6 ::^
+
+isJust : Maybe a -> Bool
+isJust m = case m of
+  Just x  -> True
+  Nothing -> False
+
+isNothing : Maybe a -> Bool
+isNothing = isJust >> not

@@ -10,25 +10,27 @@ import Destroid.Params exposing (..)
 
 updater : (Float, World) -> Model -> Model
 updater w m = m |> timeStep w |> watcher |> case m.mode of
-  Playing      -> gameUpdate  w
   Title        -> titleUpdate w
   Transition t -> transitionUpdate w (t + 120)
+  LevelIntro t -> levelIntroUpdate w
+  Playing t    -> gameUpdate  w
   Dead t       -> deadUpdate w (t + 180)
 
 
 watcher : Model -> Model
-watcher m = {m | time <- Debug.watch "Time [sec/50]" m.time,
-                 me   <- Debug.watch "Flight data" m.me,
-                 ast  <- Debug.watch "Asteroids" m.ast}
+watcher m = {m | time  <- Debug.watch "Time [sec/50]" m.time,
+                 me    <- Debug.watch "Flight data" m.me,
+                 lvl   <- Debug.watch "Level" m.lvl,
+                 blink <- Debug.watch "Blink" m.blink}
 
 
 timeStep : (Float,World) -> Model -> Model
 timeStep (dt,w) m = {m | time <- m.time + dt,
                          dt   <- dt}
 
----------------------------------------
---            Title screen
----------------------------------------
+-------------------------------------------
+--             Title screen
+-------------------------------------------
 
 titleUpdate : (Float, World) -> Model -> Model
 titleUpdate (dt,w) m = setSize w <| case w.c.shoot of
@@ -48,25 +50,72 @@ setSize wld m =
            -- otherwise (GT) compute height based on width & aspect ratio
 
 
----- intro transition sequence ----
+-------------------------------------------
+--        Title transition sequence
+-------------------------------------------
 
 transitionUpdate : (Float, World) -> Float -> Model -> Model
-transitionUpdate w tf m = if | m.time - tf > 0 -> {m | mode <- Playing}
-                             | otherwise       -> m
+transitionUpdate w tf m = let lev = m.lvl in
+  if | m.time - tf > 0 -> prepLevelIntro m
+     | otherwise       -> m
+
+prepLevelIntro : Model -> Model
+prepLevelIntro m = let lev = m.lvl in
+  {m | mode <- LevelIntro m.time,
+       lvl  <- {lev | ts <- emitTimes m.time (List.length lev.ls - 1),
+                      tf <- m.time + 2*t_fade + (toF <| List.length lev.ls)*t_sep}}
+
+--prepare list of asteroid emission times
+emitTimes : Float -> Int -> List Float
+emitTimes t n = toF >> (*) t_sep >> (+) (t + t_fade) <$> [0..n]
 
 
----------------------------------------
---            Main game logic
----------------------------------------
+-------------------------------------------
+--          Level intro sequence
+-------------------------------------------
+
+levelIntroUpdate : (Float, World) -> Model -> Model
+levelIntroUpdate w = gameUpdate w
+                  >> checkIntroExpiration
+                  >> emit
+
+checkIntroExpiration : Model -> Model
+checkIntroExpiration m = case m.mode of
+  LevelIntro t -> if m.time > m.lvl.tf then {m | mode <- Playing t} else m
+  _            -> m
+
+emit : Model -> Model
+emit m = case (m.lvl.ls, m.lvl.ts) of
+  ((a,v,s) :: xs, t :: ts) -> let lev     = m.lvl
+                                  aster'  = m.lvl.xi
+                                  aster'' = {aster'  | sz = s}
+                                  aster   = {aster'' | vx <- -v*(sin a),
+                                                       vy <-  v*(cos a)}
+                              in
+    if   m.time > t
+    then {m | ast <- aster :: m.ast,
+              lvl <- {lev | ls <- xs,
+                            ts <- ts}}
+    else m
+  _ -> m
+
+
+-------------------------------------------
+--             Main game logic
+-------------------------------------------
 
 gameUpdate : (Float, World) -> Model -> Model
 gameUpdate w = flightControls w -- apply flight controls
             >> gun w            -- launch stuff
             >> evolveAll w      -- physics
             >> reflect          -- visual copies simulating compact space
-            >> applyCollisions  -- check for bullet-ship collisions
-            >> applyImpacts     -- check for bullet-Asteroid collisions
+            >> shipBulImpacts   -- check for bullet-ship collisions
+            >> bullAstImpacts   -- check for bullet-Asteroid collisions
+            >> shipAstImpacts   -- check for ship-asteroid collisions
+            >> expireBullets
+            >> checkBlink
             >> checkDeath
+
 
 flightControls : (Float, World) -> Model -> Model
 flightControls (dt, wld) m =
@@ -85,15 +134,16 @@ flightControls (dt, wld) m =
 
 -- single-fire mode
 gun : (Float, World) -> Model -> Model
-gun (dt, wld) m = 
+gun (dt, wld) m = let b = shootFrom m.me in
   if   wld.c.shoot && m.trigg  
   then {m | trigg <- False,
-            buls  <- m.buls ++ [shootFrom m.me]}
+            buls  <- m.buls ++ [{b | t0 = m.time}]}
   else {m | trigg <- not wld.c.shoot}
 
 -- continuous fire
 gun' : (Float, World) -> Model -> Model
-gun' (dt, wld) m = if wld.c.shoot then {m | buls <- m.buls ++ [shootFrom m.me]} else m
+gun' (dt, wld) m = let b = shootFrom m.me in
+  if wld.c.shoot then {m | buls <- m.buls ++ [{b | t0 = m.time}]} else m
 
 
 b_i = 5
@@ -105,6 +155,7 @@ shootFrom ph = {ph | vx <- ph.vx - bulV*(sin ph.r),
                      vr <- 0,
                      x  <- ph.x - b_i * (sin ph.r),
                      y  <- ph.y + b_i * (cos ph.r)}
+
 
 -- move according to momentum
 evolveAll : (Float, World) -> Model -> Model
@@ -154,12 +205,15 @@ filterN : (a -> Bool) -> List a -> List a
 filterN f = List.filter (f >> not)
 
 -- shooting yourself
-applyCollisions : Model -> Model
-applyCollisions m = 
+shipBulImpacts : Model -> Model
+shipBulImpacts m =
   let bullets = filterN (checkDistance shipHitR m.me) m.buls
       db      = List.length m.buls - (List.length bullets)
-  in {m | buls <- bullets,
-          life <- m.life - 10 * toF db}
+  in  if isNothing m.blink
+      then {m | buls  <- bullets,
+                life  <- m.life - 10 * toF db,
+                blink <- if db == 0 then Nothing else Just (m.time + t_blink)}
+      else m
 
 
 ---- asteroids ----
@@ -184,29 +238,65 @@ breakUp a = case a.sz of
   Small  -> []
 
 
-checkAst : Float -> Asteroid -> List (Phys {}) -> List (Phys {})
-checkAst f a bs = filterN (checkDistance (astSize a.sz) a) bs
+checkAst : Asteroid -> List (Phys a) -> List (Phys a)
+checkAst a bs = filterN (checkDistance (astSize a.sz) a) bs
 
-checkAst_Bullet : Float -> (List Asteroid, List (Phys {})) -> (List Asteroid, List (Phys {}))
-checkAst_Bullet f (alist, blist) = case (alist,blist) of
+checkAst_Bullet : (List Asteroid, List (Phys a)) -> (List Asteroid, List (Phys a))
+checkAst_Bullet (alist, blist) = case (alist,blist) of
   ([],[]) -> ([],[])
   (la,[]) -> (la,[])
   ([],lb) -> ([],lb)
-  (a::la,lb) -> let lb' = checkAst f a lb
+  (a::la,lb) -> let lb' = checkAst a lb
                 in  case (List.length lb == List.length lb') of
-                         True  -> a         ::^ checkAst_Bullet f (la,lb)
-                         False -> breakUp a ++^ checkAst_Bullet f (la,lb')
+                         True  -> a         ::^ checkAst_Bullet (la,lb)
+                         False -> breakUp a ++^ checkAst_Bullet (la,lb')
 
-applyImpacts : Model -> Model
-applyImpacts m = let (w,h)   = stage m
-                     (la,lb) = checkAst_Bullet h (m.ast,m.buls)
-                 in  {m | ast  <- la,
-                          buls <- lb}
+bullAstImpacts : Model -> Model
+bullAstImpacts m = let (la,lb) = checkAst_Bullet (m.ast,m.buls)
+                   in  {m | ast  <- la,
+                            buls <- lb}
+
+
+---- asteroid-ship collision ----
+
+checkAstDistance : Phys a -> Asteroid -> Bool
+checkAstDistance ph a = checkDistance (astSize a.sz + shipHitR) ph a
+
+shipAstImpacts : Model -> Model
+shipAstImpacts m = case m.blink of
+  Nothing -> if   List.any (checkAstDistance m.me) m.ast
+             then {m | life  <- m.life - 10,
+                       blink <- Just (m.time + t_blink)}
+             else m
+  Just t  -> m
+
+
+---- bullet expiration ----
+
+type alias Timed a = {a | t0 : Float}
+
+expiration : Float -> List (Timed a) -> List (Timed a)
+expiration t l = case l of
+  []        -> []
+  (x :: xs) -> if (x.t0 - t) > 0 then x :: xs else expiration t xs
+
+expireBullets : Model -> Model
+expireBullets m = {m | buls <- expiration (m.time - bulletLife) m.buls}
+
+
+---- blink check ----
+
+checkBlink : Model -> Model
+checkBlink m = case m.blink of
+  Just t  -> if m.time >= t then {m | blink <- Nothing} else m
+  Nothing -> m
+
 
 ---- death check ----
 
 checkDeath : Model -> Model
 checkDeath m = if m.life > 0 then m else {m | mode <- Dead m.time}
+
 
 ---- death screen ----
 

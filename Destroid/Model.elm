@@ -7,7 +7,8 @@ import Destroid.Utils  exposing (v2scale)
 
 type Mode = Title
           | Transition Float
-          | Playing
+          | LevelIntro Float
+          | Playing Float
           | Dead Float
 
 
@@ -25,6 +26,15 @@ type ASize = Big | Medium | Small
 
 type alias Asteroid = Phys {sz : ASize}
 
+type alias Bullet = Phys {t0 : Float}
+
+
+type alias Level = { ls : List (Float,Float,ASize),  -- (angle, speed, ASize)
+                     ts : List Float,                -- times for asteroid emmissions
+                     tf : Float,                     -- time when the intro sequence ends
+                     xi : Phys {} }                  -- wormhole location
+
+
 -- master game data record
 type alias Model = { mode   : Mode,           -- game mode
                      screenScale : Float,     -- multiplication factor for display
@@ -32,12 +42,14 @@ type alias Model = { mode   : Mode,           -- game mode
                      dt     : Float,          -- timestep
                      
                      me     : Phys {},        -- the ship
-                     buls   : List (Phys {}), -- bullets
+                     buls   : List Bullet,    -- bullets
                      ast    : List Asteroid,  -- list of asteroids
+                     lvl    : Level,          -- level data
                      
                      f      : Bool,           -- firing
                      trigg  : Bool,           -- gun ready
-                     life   : Float}          -- life (out of 100)
+                     life   : Float,          -- life (out of 100)
+                     blink  : Maybe Float}    -- post-hit invulnerability expiration time
 
 
 screenCoords : Model -> (Float,Float) -> (Float,Float)
@@ -48,18 +60,20 @@ stage m = screenCoords m spaceSize
 
 -- initial state
 istate : Model
-istate = { mode   = Title,
+istate = { mode        = Title,
            screenScale = 9,
-           time   = 0,
-           dt     = 0,
+           time        = 0,
+           dt          = 0,
 
-           me     = x0,
-           buls   = [],
-           ast    = [a0],
+           me          = x0,
+           buls        = [],
+           ast         = [],
+           lvl         = l0,
 
-           f      = False,
-           trigg  = False,
-           life   = 100}
+           f           = False,
+           trigg       = False,
+           life        = 100,
+           blink       = Nothing}
 
 x0 = { x  = 0,
        y  = 0,
@@ -68,7 +82,12 @@ x0 = { x  = 0,
        vy = 0,
        vr = 0 }
 
-x1 = {x0 | vx <-  20,
-           y  <-  50}
+-- test wormhole
+x_wh = {x0 | x <- -80,
+             y <-  80}
 
-a0 = {x1 | sz = Big}
+-- test level
+l0 = { ls = [(0,20,Big), (2,20,Big), (4,20,Big)],
+       ts = [],
+       xi = x_wh,
+       tf = 1400 }
