@@ -5,11 +5,13 @@ import Debug exposing (watch)
 import Destroid.Params exposing (spaceSize, stageScale)
 import Destroid.Utils  exposing (v2scale)
 
+
 type Mode = Title
           | Transition Float
           | LevelIntro Float
-          | Playing Float
-          | Dead Float
+          | Playing    Float
+          | Dead       Float
+          | Cleared    Float
 
 
 -- data for physical bodies
@@ -45,18 +47,13 @@ type alias Model = { mode   : Mode,           -- game mode
                      buls   : List Bullet,    -- bullets
                      ast    : List Asteroid,  -- list of asteroids
                      lvl    : Level,          -- level data
+                     levnum : Int,
                      
                      f      : Bool,           -- firing
                      trigg  : Bool,           -- gun ready
                      life   : Float,          -- life (out of 100)
                      blink  : Maybe Float}    -- post-hit invulnerability expiration time
 
-
-screenCoords : Model -> (Float,Float) -> (Float,Float)
-screenCoords m = v2scale m.screenScale
-
-stage : Model -> (Float,Float)
-stage m = screenCoords m spaceSize
 
 -- initial state
 istate : Model
@@ -69,6 +66,7 @@ istate = { mode        = Title,
            buls        = [],
            ast         = [],
            lvl         = l0,
+           levnum      = 1,
 
            f           = False,
            trigg       = False,
@@ -82,12 +80,11 @@ x0 = { x  = 0,
        vy = 0,
        vr = 0 }
 
--- test wormhole
-x_wh = {x0 | x <- -80,
-             y <-  80}
+l0 = { ls = [], ts = [], xi = x0, tf = 0 }
 
--- test level
-l0 = { ls = [(0,20,Big), (2,20,Big), (4,20,Big)],
-       ts = [],
-       xi = x_wh,
-       tf = 1400 }
+
+screenCoords : Model -> (Float,Float) -> (Float,Float)
+screenCoords m = v2scale m.screenScale
+
+stage : Model -> (Float,Float)
+stage m = screenCoords m spaceSize

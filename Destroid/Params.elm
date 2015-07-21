@@ -23,14 +23,15 @@ shipcolor    = rgb  225 250 213
 boostercolor = rgb  169 172 146
 bulletcolor  = rgb  247 104 147
 lifebarcolor = rgba 214 102 220 0.7
+clearcolor   = rgb  132 216 208  --teal
 
 
 ---- Flight parameters ----
 
-scaleR = 0.005  -- rotation response scale
-scaleV = 0.025  -- acceleration response scale
+scaleR = 0.004  -- rotation response scale
+scaleV = 0.030  -- acceleration response scale
 bulV   = 80     -- bullet velocity
-astV   = 20     -- asteroid debris velocity
+astV   = 10     -- asteroid debris velocity
 
 astSizeBig    = spaceH / 15 -- Asteroid radii
 astSizeMedium = spaceH / 35
@@ -48,7 +49,7 @@ bulletSize = spaceH / 350
 ---- Wormhole animation parameters ----
 
 t_fade = 75
-t_sep  = 50
+t_sep  = 30
 
 
 ---- Weapon parameters ----
@@ -61,4 +62,8 @@ bulletLife = 200
 astDamageScale = 0.1
 
 t_blink = 60
+
+t_death = 200
+
+t_cleared = 400
 

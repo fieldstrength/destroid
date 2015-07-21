@@ -2,10 +2,11 @@ module Destroid.Control where
 
 import Debug exposing (watch)
 
-import Destroid.World exposing (..)
-import Destroid.Model exposing (..)
-import Destroid.Utils exposing (..)
+import Destroid.World  exposing (..)
+import Destroid.Model  exposing (..)
+import Destroid.Utils  exposing (..)
 import Destroid.Params exposing (..)
+import Destroid.Rand   exposing (..)
 
 
 updater : (Float, World) -> Model -> Model
@@ -14,14 +15,13 @@ updater w m = m |> timeStep w |> watcher |> case m.mode of
   Transition t -> transitionUpdate w (t + 120)
   LevelIntro t -> levelIntroUpdate w
   Playing t    -> gameUpdate  w
-  Dead t       -> deadUpdate w (t + 180)
+  Dead t       -> deadUpdate (t + t_death) w
+  Cleared t    -> clearUpdate t w
 
 
 watcher : Model -> Model
 watcher m = {m | time  <- Debug.watch "Time [sec/50]" m.time,
-                 me    <- Debug.watch "Flight data" m.me,
-                 lvl   <- Debug.watch "Level" m.lvl,
-                 blink <- Debug.watch "Blink" m.blink}
+                 me    <- Debug.watch "Flight data" m.me}
 
 
 timeStep : (Float,World) -> Model -> Model
@@ -60,14 +60,30 @@ transitionUpdate w tf m = let lev = m.lvl in
      | otherwise       -> m
 
 prepLevelIntro : Model -> Model
-prepLevelIntro m = let lev = m.lvl in
-  {m | mode <- LevelIntro m.time,
-       lvl  <- {lev | ts <- emitTimes m.time (List.length lev.ls - 1),
-                      tf <- m.time + 2*t_fade + (toF <| List.length lev.ls)*t_sep}}
+prepLevelIntro m = {m | mode <- LevelIntro m.time,
+                        lvl  <- mkLev m}
 
 --prepare list of asteroid emission times
 emitTimes : Float -> Int -> List Float
-emitTimes t n = toF >> (*) t_sep >> (+) (t + t_fade) <$> [0..n]
+emitTimes t n = (+) (t + t_fade) << (*) t_sep << toF <$> [0..n]
+
+
+mkLevList : Model -> List (Float,Float,ASize)
+mkLevList m = List.map3 (,,) (genFloats 0 (2*pi) (m.levnum + 1) m)
+                             (genFloats 5 30 (m.levnum + 1) m)
+                             (List.repeat (m.levnum + 1) Big)
+
+mkPoint : Model -> Phys {}
+mkPoint m = let px = genFloat (-spaceW/2) (spaceW/2) m
+                py = genFloat (-spaceH/2) (spaceH/2) m
+  in {x0 | x <- px, y <- py}
+
+mkLev : Model -> Level
+mkLev m = let l = mkLevList m in
+  {ls = l,
+   ts = emitTimes m.time (length l - 1),
+   tf = m.time + 2 * t_fade + (toF <| length l) * t_sep,
+   xi = mkPoint m}
 
 
 -------------------------------------------
@@ -75,9 +91,18 @@ emitTimes t n = toF >> (*) t_sep >> (+) (t + t_fade) <$> [0..n]
 -------------------------------------------
 
 levelIntroUpdate : (Float, World) -> Model -> Model
-levelIntroUpdate w = gameUpdate w
+levelIntroUpdate w = flightControls w -- apply flight controls
+                  >> gun w            -- launch stuff
+                  >> evolveAll w      -- physics
+                  >> reflect          -- visual copies simulating compact space
+                  >> shipBulImpacts   -- check for bullet-ship collisions
+                  >> bullAstImpacts   -- check for bullet-Asteroid collisions
+                  >> shipAstImpacts   -- check for ship-asteroid collisions
+                  >> expireBullets
+                  >> checkBlink       --  /gameupdate without checkClear
                   >> checkIntroExpiration
                   >> emit
+--                  >> checkClear  -- uncomment when tweaking clear screen
 
 checkIntroExpiration : Model -> Model
 checkIntroExpiration m = case m.mode of
@@ -115,6 +140,7 @@ gameUpdate w = flightControls w -- apply flight controls
             >> expireBullets
             >> checkBlink
             >> checkDeath
+            >> checkClear
 
 
 flightControls : (Float, World) -> Model -> Model
@@ -208,7 +234,7 @@ filterN f = List.filter (f >> not)
 shipBulImpacts : Model -> Model
 shipBulImpacts m =
   let bullets = filterN (checkDistance shipHitR m.me) m.buls
-      db      = List.length m.buls - (List.length bullets)
+      db      = length m.buls - (length bullets)
   in  if isNothing m.blink
       then {m | buls  <- bullets,
                 life  <- m.life - 10 * toF db,
@@ -247,7 +273,7 @@ checkAst_Bullet (alist, blist) = case (alist,blist) of
   (la,[]) -> (la,[])
   ([],lb) -> ([],lb)
   (a::la,lb) -> let lb' = checkAst a lb
-                in  case (List.length lb == List.length lb') of
+                in  case (length lb == length lb') of
                          True  -> a         ::^ checkAst_Bullet (la,lb)
                          False -> breakUp a ++^ checkAst_Bullet (la,lb')
 
@@ -298,7 +324,39 @@ checkDeath : Model -> Model
 checkDeath m = if m.life > 0 then m else {m | mode <- Dead m.time}
 
 
----- death screen ----
+---- completion check ----
 
-deadUpdate : (Float, World) -> Float -> Model -> Model
-deadUpdate w t m = if m.time < t then m else istate
+checkClear : Model -> Model
+checkClear m = if List.isEmpty m.ast
+               then {m | mode <-  Cleared m.time,
+                         blink <- Nothing}
+               else m
+
+
+-------------------------------------------
+--             Death screen
+-------------------------------------------
+
+deadUpdate : Float -> (Float, World) -> Model -> Model
+deadUpdate t w m = if m.time >= t then istate else
+  m |> evolveAll w
+    >> reflect
+    >> bullAstImpacts
+    >> expireBullets
+
+
+-------------------------------------------
+--           Level cleared screen
+-------------------------------------------
+
+clearUpdate : Float -> (Float,World) -> Model -> Model
+clearUpdate t w m = if m.time >= (t + t_cleared)
+                    then {m | levnum <- m.levnum + 1} |> prepLevelIntro
+                    else
+  m |> gun w
+    >> flightControls w
+    >> evolveAll w
+    >> reflect
+    >> bullAstImpacts
+    >> expireBullets
+

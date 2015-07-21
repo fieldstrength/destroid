@@ -20,7 +20,8 @@ view w m = case m.mode of
   Transition t -> transitionView w t m
   LevelIntro t -> levelIntroView w t m
   Playing t    -> gameView w m
-  Dead t       -> deadView w m
+  Dead t       -> deadView t w m
+  Cleared t    -> clearView t w m
 
 
 ---------------------------------------
@@ -179,7 +180,7 @@ ship m =
   in if isNothing m.blink then sh else sh |> alpha 0.4
 
 
-refl = List.map (\(x,y) -> (-x,y))
+refl = (<$>) (\(x,y) -> (-x,y))
 
 shipdesign = [(0.00,4.40),
               (0.26,3.84),
@@ -255,5 +256,39 @@ lifeBar wld m = let life  = m.life * 1.4
 --            Dead view
 ---------------------------------------
 
-deadView : World -> Model -> Element
-deadView w m = leftAligned (fromString "YOU'RE DEAD")
+deadView : Float -> World -> Model -> Element
+deadView t wld m =
+  let (cw,ch) = (wld.w, wld.h)
+  in  collage cw ch <|
+           (filled gameBG <| rect (toF cw) (toF ch)) --background
+        :: renderGroups' m
+        ++ [rect (toF cw) (toF ch) |> filled white |> alpha (0.9 * fade (t+t_death) t m.time)]
+        ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
+
+
+renderGroups' : Model -> List Form
+renderGroups' m = render m (renderers' m)
+
+renderers' : Model -> List (Model -> Form)
+renderers' m = (bullet   <$> m.buls)
+            ++ (asteroid <$> m.ast)
+
+
+---------------------------------------
+--           Cleared view
+---------------------------------------
+
+clearView : Float -> World -> Model -> Element
+clearView t wld m =
+  let (cw,ch) = (wld.w, wld.h)
+  in  collage cw ch <|
+           [rect (toF cw) (toF ch) |> filled gameBG,
+            rect (toF cw) (toF ch) |> filled clearcolor |> alpha
+               ((fadeInOut t
+                           (t + 0.2*t_cleared)
+                           (t + 0.8*t_cleared)
+                           (t + t_cleared) m.time) * 0.5)
+           ]
+        ++ renderGroups m
+        ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
+

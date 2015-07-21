@@ -5,7 +5,7 @@ import Window
 
 
 type alias Arrows = { x : Int, y : Int }
- 
+
 type Steer = SLeft | SCenter | SRight
 
 type alias Command = { steer  : Steer,

@@ -12,6 +12,8 @@ v2scale r (x,y) = (r*x,r*y)
 
 toF = toFloat
 
+length = List.length
+
 appendIf : Bool -> List a -> List a -> List a
 appendIf b ys xs = case b of
   False -> xs
@@ -34,3 +36,8 @@ isJust m = case m of
 
 isNothing : Maybe a -> Bool
 isNothing = isJust >> not
+
+fromJust : Maybe a -> a
+fromJust mx = case mx of
+  Just x -> x
+
