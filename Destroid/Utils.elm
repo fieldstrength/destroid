@@ -14,20 +14,32 @@ toF = toFloat
 
 length = List.length
 
+zipWith = List.map2
+
 appendIf : Bool -> List a -> List a -> List a
 appendIf b ys xs = case b of
   False -> xs
   True  -> xs ++ ys
 
-(++^) : List a -> (List a, List b) -> (List a, List b)
+
+(++^) : List a -> (List a, b) -> (List a, b)
 (++^) la1 (la2,lb) = (la1 ++ la2, lb)
 
-infixr 6 ++^
-
-(::^) : a -> (List a, List b) -> (List a, List b)
+(::^) : a -> (List a, b) -> (List a, b)
 (::^) a1 (la,lb) = (a1 :: la, lb)
 
+(++^^) : List a -> (List a,b,c) -> (List a,b,c)
+(++^^) la1 (la2,x,y) = (la1 ++ la2,x,y)
+
+(::^^) : a -> (List a,b,c) -> (List a,b,c)
+(::^^) a1 (la,x,y) = (a1 :: la,x,y)
+
+
+infixr 6 ++^
 infixr 6 ::^
+infixr 6 ++^^
+infixr 6 ::^^
+
 
 isJust : Maybe a -> Bool
 isJust m = case m of

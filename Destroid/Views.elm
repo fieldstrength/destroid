@@ -34,9 +34,9 @@ titleView wld m = let (w,h)   = stage m
                   in  collage cw ch <|
   [rect (toF cw) (toF ch) |> filled titleBG,
    shipIntroAnim 0 m,
-   image 700 150 "../img/Logo.png"       |> toForm |> move (0,0.4*h), -- original 1400 x 300
-   image 400 40  "../img/PressStart.png" |> toForm |> move (0,-0.2*h) |> alpha (sq <| cos (m.time/45)), -- 800 x 80
-   image 600 100 "../img/Controls.png"   |> toForm |> move (0,-0.45*h)] -- 1200 x 200
+   image 700 150 "../img/Logo.png"       |> toForm |> move (0,0.4*h),
+   image 400 40  "../img/PressStart.png" |> toForm |> move (0,-0.2*h) |> alpha (sq <| cos (m.time/45)),
+   image 600 100 "../img/Controls.png"   |> toForm |> move (0,-0.45*h)]
 
 shipIntroAnim : Float -> Model -> Form
 shipIntroAnim dr m = let (w,h) = stage m
@@ -78,6 +78,7 @@ levelIntroView wld t m =
            (filled gameBG <| rect (toF cw) (toF ch)) --background
         :: introRenderGroups alph m
         ++ lifeBar wld m
+        ++ digForms wld m
         ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
 
 
@@ -126,6 +127,7 @@ gameView wld m =
            (filled gameBG <| rect (toF cw) (toF ch)) --background
         :: renderGroups m
         ++ lifeBar wld m
+        ++ digForms wld m
         ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
 
 
@@ -252,6 +254,31 @@ lifeBar wld m = let life  = m.life * 1.4
                                      outlined (solid white) (rect 140 8)]
 
 
+digits : Int -> List Int
+digits n = if | n // 10 > 0 -> digits (n // 10) ++ [n % 10]
+              | otherwise   -> [n % 10]
+
+digSrc : Int -> String
+digSrc n = case n of
+  0 -> "../img/digits/0.png"
+  1 -> "../img/digits/1.png"
+  2 -> "../img/digits/2.png"
+  3 -> "../img/digits/3.png"
+  4 -> "../img/digits/4.png"
+  5 -> "../img/digits/5.png"
+  6 -> "../img/digits/6.png"
+  7 -> "../img/digits/7.png"
+  8 -> "../img/digits/8.png"
+  9 -> "../img/digits/9.png"
+
+digForms : World -> Model -> List Form
+digForms wld m = let (w,h) = (toF wld.w, toF wld.h)
+                     ds = digits m.score
+                     xi = 0.5*w - 14 * (toF <| length ds)
+                     xs = (+) xi << toF << (*) 14 <$> [0..(length ds)]
+                 in
+  zipWith (\d x -> image 12 14 (digSrc d) |> toForm |> move (x,0.5*h - 24)) ds xs
+
 ---------------------------------------
 --            Dead view
 ---------------------------------------
@@ -290,5 +317,7 @@ clearView t wld m =
                            (t + t_cleared) m.time) * 0.5)
            ]
         ++ renderGroups m
+        ++ lifeBar wld m
+        ++ digForms wld m
         ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
 

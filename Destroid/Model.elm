@@ -48,6 +48,7 @@ type alias Model = { mode   : Mode,           -- game mode
                      ast    : List Asteroid,  -- list of asteroids
                      lvl    : Level,          -- level data
                      levnum : Int,
+                     score  : Int,
                      
                      f      : Bool,           -- firing
                      trigg  : Bool,           -- gun ready
@@ -67,6 +68,7 @@ istate = { mode        = Title,
            ast         = [],
            lvl         = l0,
            levnum      = 1,
+           score       = 0,
 
            f           = False,
            trigg       = False,

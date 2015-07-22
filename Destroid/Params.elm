@@ -63,7 +63,7 @@ astDamageScale = 0.1
 
 t_blink = 60
 
-t_death = 200
+t_death = 300
 
 t_cleared = 400
 

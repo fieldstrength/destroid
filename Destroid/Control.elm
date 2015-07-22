@@ -69,13 +69,12 @@ emitTimes t n = (+) (t + t_fade) << (*) t_sep << toF <$> [0..n]
 
 
 mkLevList : Model -> List (Float,Float,ASize)
-mkLevList m = List.map3 (,,) (genFloats 0 (2*pi) (m.levnum + 1) m)
+mkLevList m = List.map3 (,,) (genAngles (m.levnum + 1) m)
                              (genFloats 5 30 (m.levnum + 1) m)
                              (List.repeat (m.levnum + 1) Big)
 
 mkPoint : Model -> Phys {}
-mkPoint m = let px = genFloat (-spaceW/2) (spaceW/2) m
-                py = genFloat (-spaceH/2) (spaceH/2) m
+mkPoint m = let [px,py] = genFloats (-spaceW/2) (spaceW/2) 2 m
   in {x0 | x <- px, y <- py}
 
 mkLev : Model -> Level
@@ -99,7 +98,7 @@ levelIntroUpdate w = flightControls w -- apply flight controls
                   >> bullAstImpacts   -- check for bullet-Asteroid collisions
                   >> shipAstImpacts   -- check for ship-asteroid collisions
                   >> expireBullets
-                  >> checkBlink       --  /gameupdate without checkClear
+                  >> checkBlink       --  (/gameupdate minus checkClear)
                   >> checkIntroExpiration
                   >> emit
 --                  >> checkClear  -- uncomment when tweaking clear screen
@@ -147,7 +146,7 @@ flightControls : (Float, World) -> Model -> Model
 flightControls (dt, wld) m =
   let me = m.me
       m' = { m | f <- wld.c.thrust }
-      me1 = if wld.c.thrust 
+      me1 = if wld.c.thrust
             then { me | vx <- me.vx - (sin me.r) * dt,
                         vy <- me.vy + (cos me.r) * dt }
             else me
@@ -250,37 +249,47 @@ astSize a = case a of
   Medium -> astSizeMedium
   Small  -> astSizeSmall
 
-breakUp' : Asteroid -> List Asteroid
-breakUp' ph = [{ph | vy <- ph.vy + astV},
-               {ph | vx <- ph.vx - astV * sin(2*pi/3),
-                     vy <- ph.vy + astV * cos(2*pi/3)},
-               {ph | vx <- ph.vx - astV * sin(4*pi/3),
-                     vy <- ph.vy + astV * cos(4*pi/3)}]
+breakUp' : Float -> Asteroid -> List Asteroid
+breakUp' r ph = [{ph | vx <- ph.vx - astV * sin r,
+                       vy <- ph.vy + astV * cos r},
+                 {ph | vx <- ph.vx - astV * sin(r + 2*pi/3),
+                       vy <- ph.vy + astV * cos(r + 2*pi/3)},
+                 {ph | vx <- ph.vx - astV * sin(r + 4*pi/3),
+                       vy <- ph.vy + astV * cos(r + 4*pi/3)}]
 
-breakUp : Asteroid -> List Asteroid
-breakUp a = case a.sz of
-  Big    -> {a | sz <- Medium} |> breakUp'
-  Medium -> {a | sz <- Small}  |> breakUp'
+breakUp : Float -> Asteroid -> List Asteroid
+breakUp r a = case a.sz of
+  Big    -> {a | sz <- Medium} |> breakUp' r
+  Medium -> {a | sz <- Small}  |> breakUp' r
   Small  -> []
 
 
 checkAst : Asteroid -> List (Phys a) -> List (Phys a)
 checkAst a bs = filterN (checkDistance (astSize a.sz) a) bs
 
-checkAst_Bullet : (List Asteroid, List (Phys a)) -> (List Asteroid, List (Phys a))
-checkAst_Bullet (alist, blist) = case (alist,blist) of
-  ([],[]) -> ([],[])
-  (la,[]) -> (la,[])
-  ([],lb) -> ([],lb)
-  (a::la,lb) -> let lb' = checkAst a lb
-                in  case (length lb == length lb') of
-                         True  -> a         ::^ checkAst_Bullet (la,lb)
-                         False -> breakUp a ++^ checkAst_Bullet (la,lb')
+astScore : Asteroid -> Int
+astScore a = case a.sz of
+  Big    -> 2
+  Medium -> 5
+  Small  -> 20
+
+checkAst_Bullet : (List Asteroid, List (Phys a), (Int,Float)) ->
+                  (List Asteroid, List (Phys a), (Int,Float))
+checkAst_Bullet (alist, blist, p) = case (alist,blist,p) of
+  ([],[],(n,x))    -> ([],[],(n,x))
+  (la,[],(n,x))    -> (la,[],(n,x))
+  ([],lb,(n,x))    -> ([],lb,(n,x))
+  (a::la,lb,(n,x)) -> let lb' = checkAst a lb
+                      in
+    case (length lb == length lb') of
+         True  -> a           ::^^ checkAst_Bullet (la,lb,(n,x))
+         False -> breakUp x a ++^^ checkAst_Bullet (la,lb',(astScore a + n,x))
 
 bullAstImpacts : Model -> Model
-bullAstImpacts m = let (la,lb) = checkAst_Bullet (m.ast,m.buls)
-                   in  {m | ast  <- la,
-                            buls <- lb}
+bullAstImpacts m = let (la,lb,(s,t)) = checkAst_Bullet (m.ast,m.buls,(0,m.time))
+                   in  {m | ast   <- la,
+                            buls  <- lb,
+                            score <- m.score + s}
 
 
 ---- asteroid-ship collision ----
@@ -329,7 +338,8 @@ checkDeath m = if m.life > 0 then m else {m | mode <- Dead m.time}
 checkClear : Model -> Model
 checkClear m = if List.isEmpty m.ast
                then {m | mode <-  Cleared m.time,
-                         blink <- Nothing}
+                         blink <- Nothing,
+                         score <- m.score + 400 + 100*m.levnum}
                else m
 
 

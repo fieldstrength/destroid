@@ -36,3 +36,10 @@ genInt j k m = fst <| generate (int j k) (initialSeed <| floor m.time)
 
 genFloat : Float -> Float -> Model -> Float
 genFloat x y m = fst <| generate (float x y) (initialSeed <| floor m.time)
+
+
+genAngle : Model -> Float
+genAngle = genFloat 0 (2*pi)
+
+genAngles : Int -> Model -> List Float
+genAngles = genFloats 0 (2*pi)
