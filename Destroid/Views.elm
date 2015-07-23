@@ -59,7 +59,7 @@ sq x = x*x
 transitionView : World -> Float -> Model -> Element
 transitionView wld t0 m =
   let (w,h) = (wld.w, wld.h)
-      alph  = Debug.watch "Intro animation alpha" <| (m.time - t0) / 120
+      alph  = (m.time - t0) / 120
   in  collage w h <|
         [rect (toF w) (toF h) |> filled titleBG,
          rect (toF w) (toF h) |> filled gameBG |> alpha alph,
@@ -92,6 +92,9 @@ fadeInOut t1 t2 t3 t4 t =
      | t3 < t && t <= t4 -> fade t4 t3 t
      | otherwise         -> 0
 
+fadeOut ti tf t = let f = fade tf ti t in
+  if f < 0 then 0 else f
+
 
 introRenderers : Float -> Model -> List (Model -> Form)
 introRenderers f m = wormhole f
@@ -108,7 +111,7 @@ wormhole : Float -> Model -> Form
 wormhole f m = whform m |> alpha f
 
 whform : Model -> Form
-whform m = gradient (whgrad 100) (circle <| 200) |> position m m.lvl.xi
+whform m = gradient (whgrad 100) (circle 200) |> position m m.lvl.xi
 
 whgrad : Float -> Gradient
 whgrad n = radial (0,0) (0.2*n) (0,0) n
@@ -274,7 +277,7 @@ digSrc n = case n of
 digForms : World -> Model -> List Form
 digForms wld m = let (w,h) = (toF wld.w, toF wld.h)
                      ds = digits m.score
-                     xi = 0.5*w - 14 * (toF <| length ds)
+                     xi = 0.5*w - 24 * (toF <| length ds)
                      xs = (+) xi << toF << (*) 14 <$> [0..(length ds)]
                  in
   zipWith (\d x -> image 12 14 (digSrc d) |> toForm |> move (x,0.5*h - 24)) ds xs
@@ -288,17 +291,29 @@ deadView t wld m =
   let (cw,ch) = (wld.w, wld.h)
   in  collage cw ch <|
            (filled gameBG <| rect (toF cw) (toF ch)) --background
-        :: renderGroups' m
-        ++ [rect (toF cw) (toF ch) |> filled white |> alpha (0.9 * fade (t+t_death) t m.time)]
+        :: renderGroups' t m
+        ++ [rect (toF cw) (toF ch) |> filled white |> alpha (0.8 * fade (t+t_death) t m.time)]
         ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
 
 
-renderGroups' : Model -> List Form
-renderGroups' m = render m (renderers' m)
+renderGroups' : Float -> Model -> List Form
+renderGroups' t m = render m (renderers' t m)
 
-renderers' : Model -> List (Model -> Form)
-renderers' m = (bullet   <$> m.buls)
-            ++ (asteroid <$> m.ast)
+renderers' : Float -> Model -> List (Model -> Form)
+renderers' t m = explosion t >> alpha (fadeOut t (t+350) m.time)
+              :: (bullet   <$> m.buls)
+              ++ (asteroid <$> m.ast)
+
+
+
+explGrad : Float -> Gradient
+explGrad n = radial (0,0) (0.75*n) (0,0) n
+    [ (0, rgba 0 0 0 0),
+      (1, white) ]
+
+explosion : Float -> Model -> Form
+explosion t0 m = let dt = m.time - t0 in
+  gradient (explGrad dt) (circle dt) |> position m m.me
 
 
 ---------------------------------------
@@ -311,13 +326,19 @@ clearView t wld m =
   in  collage cw ch <|
            [rect (toF cw) (toF ch) |> filled gameBG,
             rect (toF cw) (toF ch) |> filled clearcolor |> alpha
-               ((fadeInOut t
-                           (t + 0.2*t_cleared)
-                           (t + 0.8*t_cleared)
-                           (t + t_cleared) m.time) * 0.5)
+               (fadeInOut t
+                          (t + 0.2*t_cleared)
+                          (t + 0.8*t_cleared)
+                          (t +     t_cleared) m.time * 0.5)
            ]
         ++ renderGroups m
         ++ lifeBar wld m
         ++ digForms wld m
+        ++ [image 400 35 "../img/Cleared.png" |> toForm |> alpha
+              (fadeInOut (t + 0.1*t_cleared)
+                         (t + 0.3*t_cleared)
+                         (t + 0.8*t_cleared)
+                         (t + 1.0*t_cleared) m.time)
+           ]
         ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
 
