@@ -78,7 +78,7 @@ levelIntroView wld t m =
            (filled gameBG <| rect (toF cw) (toF ch)) --background
         :: introRenderGroups alph m
         ++ lifeBar wld m
-        ++ digForms wld m
+        ++ gamedata wld m
         ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
 
 
@@ -130,7 +130,7 @@ gameView wld m =
            (filled gameBG <| rect (toF cw) (toF ch)) --background
         :: renderGroups m
         ++ lifeBar wld m
-        ++ digForms wld m
+        ++ gamedata wld m
         ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
 
 
@@ -261,6 +261,10 @@ digits : Int -> List Int
 digits n = if | n // 10 > 0 -> digits (n // 10) ++ [n % 10]
               | otherwise   -> [n % 10]
 
+digmin : Int -> Int -> List Int
+digmin m n = List.repeat (m - (length (digits n))) 0 ++ digits n
+
+
 digSrc : Int -> String
 digSrc n = case n of
   0 -> "../img/digits/0.png"
@@ -274,13 +278,39 @@ digSrc n = case n of
   8 -> "../img/digits/8.png"
   9 -> "../img/digits/9.png"
 
-digForms : World -> Model -> List Form
-digForms wld m = let (w,h) = (toF wld.w, toF wld.h)
-                     ds = digits m.score
-                     xi = 0.5*w - 24 * (toF <| length ds)
+scoreForms : World -> Model -> List Form
+scoreForms wld m = let (w,h) = (toF wld.w, toF wld.h)
+                       ds = digmin 5 m.score
+                       xi = -6 * (toF <| length ds)
+                       xs = (+) xi << toF << (*) 14 <$> [0..(length ds)]
+                   in
+  zipWith (\d x -> image 12 14 (digSrc d) |> toForm |> move (x,-0.5*h + 24)) ds xs
+
+
+hiScoreForms : World -> Model -> List Form
+hiScoreForms wld m = let (w,h) = (toF wld.w, toF wld.h)
+                         ds = digmin 5 m.hi
+                         xi = 0.5*w - 10 - 14 * (toF <| length ds)
+                         xs = (+) xi << toF << (*) 14 <$> [0..(length ds)]
+                     in
+     (image 20 13 "../img/Hi.png" |> toForm |> move (xi - 26, -0.5*h + 24))
+  :: zipWith (\d x -> image 12 14 (digSrc d) |> toForm |> move (x,-0.5*h + 24)) ds xs
+
+lvlForms : World -> Model -> List Form
+lvlForms wld m = let (w,h) = (toF wld.w, toF wld.h)
+                     ds = digits m.levnum
+                     xi = -0.5*w + 50
                      xs = (+) xi << toF << (*) 14 <$> [0..(length ds)]
                  in
-  zipWith (\d x -> image 12 14 (digSrc d) |> toForm |> move (x,0.5*h - 24)) ds xs
+     (image 20 13 "../img/Lv.png" |> toForm |> move (xi - 26, -0.5*h + 24))
+  :: zipWith (\d x -> image 12 14 (digSrc d) |> toForm |> move (x,-0.5*h + 24)) ds xs
+
+
+gamedata : World -> Model -> List Form
+gamedata w m = alpha 0.7 <$> lvlForms w m
+                          ++ scoreForms w m
+                          ++ hiScoreForms w m
+
 
 ---------------------------------------
 --            Dead view
@@ -293,6 +323,7 @@ deadView t wld m =
            (filled gameBG <| rect (toF cw) (toF ch)) --background
         :: renderGroups' t m
         ++ [rect (toF cw) (toF ch) |> filled white |> alpha (0.8 * fade (t+t_death) t m.time)]
+        ++ gamedata wld m
         ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
 
 
@@ -333,7 +364,7 @@ clearView t wld m =
            ]
         ++ renderGroups m
         ++ lifeBar wld m
-        ++ digForms wld m
+        ++ gamedata wld m
         ++ [image 400 35 "../img/Cleared.png" |> toForm |> alpha
               (fadeInOut (t + 0.1*t_cleared)
                          (t + 0.3*t_cleared)

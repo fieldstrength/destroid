@@ -348,7 +348,8 @@ checkClear m = if List.isEmpty m.ast
 -------------------------------------------
 
 deadUpdate : Float -> (Float, World) -> Model -> Model
-deadUpdate t w m = if m.time >= t then istate else
+deadUpdate t w m = let newhi = max m.score m.hi
+                   in  if m.time >= t then {istate | hi <- newhi} else
   m |> evolveAll w
     >> reflect
     >> bullAstImpacts

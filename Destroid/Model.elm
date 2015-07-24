@@ -49,6 +49,7 @@ type alias Model = { mode   : Mode,           -- game mode
                      lvl    : Level,          -- level data
                      levnum : Int,
                      score  : Int,
+                     hi     : Int,
                      
                      f      : Bool,           -- firing
                      trigg  : Bool,           -- gun ready
@@ -69,6 +70,7 @@ istate = { mode        = Title,
            lvl         = l0,
            levnum      = 1,
            score       = 0,
+           hi          = 0,
 
            f           = False,
            trigg       = False,
