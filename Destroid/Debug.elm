@@ -29,3 +29,4 @@ debug_panel (cw,ch) dt =
 {- Note: The fps function gives time deltas in miliseconds. 
 We divide these deltas by 20 to get a dt of around unity. 
 Hence the conversions above are needed. -}
+

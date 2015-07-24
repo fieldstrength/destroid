@@ -52,3 +52,4 @@ trig a (b,c) = case a of
 
 running : Signal Bool
 running = fst <~ foldp trig (True,True) (isDown 27)
+

@@ -43,3 +43,4 @@ genAngle = genFloat 0 (2*pi)
 
 genAngles : Int -> Model -> List Float
 genAngles = genFloats 0 (2*pi)
+

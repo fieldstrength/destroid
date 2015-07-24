@@ -1,8 +1,8 @@
 {
     "version": "0.1.0",
-    "summary": "An in-progress space shooter inspired by the classic Asteroids",
+    "summary": "A space shooter inspired by the classic Asteroids",
     "repository": "https://github.com/BlackBrane/destroid.git",
-    "license": "",
+    "license": "GPL2",
     "source-directories": [
         "."
     ],

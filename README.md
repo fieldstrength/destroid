@@ -13,6 +13,14 @@ Destroid places stronger emphasis on the compactness property of space that was 
 * Left/Right-arrows = rotate
 * Escape = pause
 
+#### Compilation
+
+To compile have the [Elm Platform](http://elm-lang.org/install) installed, navigate to the repo directory and type:
+
+```
+elm-make Destroid/Main.elm --output index.html
+```
+or place the generated `index.html` file anywhere the needed `img/` folder is also present.
 
 #### Acknowledgements 
 

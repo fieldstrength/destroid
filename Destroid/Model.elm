@@ -92,3 +92,4 @@ screenCoords m = v2scale m.screenScale
 
 stage : Model -> (Float,Float)
 stage m = screenCoords m spaceSize
+
