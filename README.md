@@ -8,9 +8,11 @@ Destroid places stronger emphasis on the compactness property of space that was 
 
 #### Controls
 
-* Space bar = shoot / begin
+* Space bar = shoot / start game
 * Up-arrow = accelerate
 * Left/Right-arrows = rotate
+* Escape = pause
+
 
 #### Acknowledgements 
 

@@ -1,7 +1,8 @@
 module Destroid.World where
 
-import Keyboard exposing (space)
+import Keyboard exposing (space, isDown)
 import Window
+import Signal exposing (foldp, (<~))
 
 
 type alias Arrows = { x : Int, y : Int }
@@ -37,3 +38,17 @@ mkWorld cc (ww,hh) = { c = cc, w = ww, h = hh }
 
 world : Signal World
 world = Signal.map2 mkWorld commands Window.dimensions
+
+
+---- Pausing ----
+
+type alias Trig = (Bool,Bool)
+
+trig : Bool -> Trig -> Trig
+trig a (b,c) = case a of
+  False -> (b,True)
+  True  -> if c then (not b, False)
+                else (b, False)
+
+running : Signal Bool
+running = fst <~ foldp trig (True,True) (isDown 27)
