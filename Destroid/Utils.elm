@@ -52,4 +52,4 @@ isNothing = isJust >> not
 fromJust : Maybe a -> a
 fromJust mx = case mx of
   Just x -> x
-
+  Nothing -> Debug.crash "FromJust: your Maybe value is not a 'Just'"

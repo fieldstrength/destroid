@@ -87,10 +87,10 @@ fade ti tf t = (t - ti) / (tf - ti)
 
 fadeInOut : Float -> Float -> Float -> Float -> Float -> Float
 fadeInOut t1 t2 t3 t4 t =
-  if | t1 < t && t <= t2 -> fade t1 t2 t
-     | t2 < t && t <= t3 -> 1
-     | t3 < t && t <= t4 -> fade t4 t3 t
-     | otherwise         -> 0
+  if t1 < t && t <= t2      then fade t1 t2 t
+  else if t2 < t && t <= t3 then 1
+  else if t3 < t && t <= t4 then fade t4 t3 t
+  else 0
 
 fadeOut ti tf t = let f = fade tf ti t in
   if f < 0 then 0 else f
@@ -210,9 +210,9 @@ flame = [(1.30,-1.3),
          (1.40,-2.5),
          (1.30,-3.0),
          (1.25,-3.5),
-          
+
          (1.05,-3.9),
-          
+
          (0.85,-3.5),
          (0.80,-3.0),
          (0.70,-2.5),
@@ -230,7 +230,7 @@ boostgrad s = gradient <|
 bullet : Phys a -> Model -> Form
 bullet ph m = let s = bulletSize
                   n = 16 in
-  polygon [(-s,0),(-s,n*s),(s,n*s),(s,0)] 
+  polygon [(-s,0),(-s,n*s),(s,n*s),(s,0)]
     |> filled bulletcolor
     |> position m ph
 
@@ -258,8 +258,8 @@ lifeBar wld m = let life  = m.life * 1.4
 
 
 digits : Int -> List Int
-digits n = if | n // 10 > 0 -> digits (n // 10) ++ [n % 10]
-              | otherwise   -> [n % 10]
+digits n = if n // 10 > 0 then digits (n // 10) ++ [n % 10]
+           else [n % 10]
 
 digmin : Int -> Int -> List Int
 digmin m n = List.repeat (m - (length (digits n))) 0 ++ digits n
@@ -277,6 +277,7 @@ digSrc n = case n of
   7 -> "../img/digits/7.png"
   8 -> "../img/digits/8.png"
   9 -> "../img/digits/9.png"
+  _ -> Debug.crash ""
 
 scoreForms : World -> Model -> List Form
 scoreForms wld m = let (w,h) = (toF wld.w, toF wld.h)
@@ -372,4 +373,3 @@ clearView t wld m =
                          (t + 1.0*t_cleared) m.time)
            ]
         ++ (if debug then [debug_panel (cw,ch) m.dt] else [])
-

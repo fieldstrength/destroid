@@ -28,8 +28,8 @@ clearcolor   = rgb  132 216 208  --teal
 
 ---- Flight parameters ----
 
-scaleR = 0.004  -- rotation response scale
-scaleV = 0.030  -- acceleration response scale
+scaleR = 0.0036 -- rotation response scale
+scaleV = 0.03   -- acceleration response scale
 bulV   = 80     -- bullet velocity
 astV   = 10     -- asteroid debris velocity
 

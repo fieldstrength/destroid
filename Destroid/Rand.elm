@@ -13,8 +13,7 @@ type alias FlS = (Float,Seed)
 
 gen : Int -> Generator a -> (a,Seed) -> List (a,Seed)
 gen l g (x,s) = let yz = generate g s in
-  if | l <  1 -> []
-     | l >= 1 -> yz :: gen (l-1) g yz
+  if l <  1 then [] else yz :: gen (l-1) g yz
 
 
 genI : Int -> Int -> Int -> IntS -> List IntS
@@ -43,4 +42,3 @@ genAngle = genFloat 0 (2*pi)
 
 genAngles : Int -> Model -> List Float
 genAngles = genFloats 0 (2*pi)
-

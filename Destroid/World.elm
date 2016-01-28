@@ -2,7 +2,7 @@ module Destroid.World where
 
 import Keyboard exposing (space, isDown)
 import Window
-import Signal exposing (foldp, (<~))
+import Signal exposing (foldp, map)
 
 
 type alias Arrows = { x : Int, y : Int }
@@ -17,11 +17,14 @@ type alias World = { c : Command,
                      w : Int,   -- window width
                      h : Int }  -- window height
 
+
+
 mkSteer : Arrows -> Steer
 mkSteer arr = case (arr.x) of
   -1 -> SLeft
   0  -> SCenter
   1  -> SRight
+  _  -> Debug.crash ""
 
 mkCommand : Arrows -> Bool -> Command
 mkCommand arr b = case (arr.y) of
@@ -51,5 +54,4 @@ trig a (b,c) = case a of
                 else (b, False)
 
 running : Signal Bool
-running = fst <~ foldp trig (True,True) (isDown 27)
-
+running = map fst (foldp trig (True,True) (isDown 27))
